@@ -1,0 +1,290 @@
+---
+title: "911 calls Salford"
+author: "Daniel Garcia"
+date: "2022-11-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries
+
+```{r}
+# importing necessary libraries 
+library(tidyverse)
+library(moderndive)
+library(rcompanion)
+library(skimr)
+```
+#### this project models 911 calls in the county of Montgomery, Pennsylvania. 
+#### {r} [Kaggle link to data] (https://www.kaggle.com/datasets/mchirico/montcoalert)
+
+## 911 calls
+```{r}
+# reading data 
+df1= read_csv("C:\\Users\\dgray\\OneDrive\\data\\911.csv")
+glimpse(df1)
+```
+
+
+```{r}
+# checking range time data was taken 
+range(df1$timeStamp)
+```
+goes from 12/10/2015 to 07/29/2020
+
+
+# Homogenous method
+
+```{r}
+# count of 911 calls by twp in descending order. Lower Merion has the most
+twp_df= df1 %>% 
+  group_by(twp) %>% 
+  summarise(count=n()) %>% 
+  arrange(desc(count))
+twp_df
+```
+### Lower Merion has the highest crime rate, so lets analyze them
+
+```{r}
+# creating dataframe with only the town Lower Merion
+EG_df = df1 %>% 
+  filter(twp=="EAST GREENVILLE")
+EG_df
+```
+
+```{r}
+# plotting cases by year in lower merion
+ggplot(EG_df, mapping=aes(x=timeStamp)) +
+  geom_histogram(bins=20, color="white", fill="#CC9900")
+```
+
+```{r}
+glimpse(EG_df)
+```
+
+## finding lambda 
+```{r}
+# changing format of timestamp to discard time and only include date 
+eastG_df= EG_df %>% 
+  mutate(format(as.POSIXct(EG_df$timeStamp, format='%m/%d/%Y %H:%M:%S'),format='%m/%d/%Y')) %>% 
+  rename("TimeStamp"= "format(...)") %>% 
+  select(-timeStamp)
+glimpse(eastG_df)
+```
+
+```{r}
+# grouping by date and counting number of 911 calls for each day 
+num_calls_per_day = eastG_df %>% 
+  group_by(TimeStamp) %>% 
+  summarise(count=n())
+num_calls_per_day
+```
+ 
+```{r}
+# calculating number of distinct days
+n_days=n_unique(num_calls_per_day$TimeStamp)
+n_days
+
+# summing the number of total 911 calls
+total_calls= sum(num_calls_per_day$count)
+total_calls
+```
+ 
+```{r}
+# Lambda is total calls divided by the number of days
+lambda= total_calls/n_days
+lambda
+```
+
+
+
+
+### visualize
+
+
+```{r}
+# distribution of number of 911 calls per day
+ggplot(data= num_calls_per_day, mapping=aes(x=count)) +
+  geom_histogram(bins=12, color="black", fill="orange") +
+  labs(title="Distribution of the number of calls per day", x="Number of 911 calls")
+```
+
+
+
+
+## Waiting times by day
+```{r}
+# average waiting time is n/lambda
+avg_wait_time = 1/lambda
+avg_wait_time
+```
+```{r}
+avg_wait_time_min = avg_wait_time*24*60
+avg_wait_time_min
+```
+There will be a 911 call on average every 14 hrs and 15 minutes, 
+approximately. 
+
+
+```{r}
+# variance of waiting time
+var_wait_time = 1/(lambda**2)
+var_wait_time
+```
+about 21 minutes^2
+
+
+
+## simulating trajectory
+```{r}
+lambda= 1.685019
+njumps<- 20
+
+N<- 0:njumps
+
+time<- c()
+
+time[1]<- 0
+
+set.seed(333422)
+
+for (i in 2:(njumps+1))
+time[i]<- time[i-1]+round((-1/lambda)*log(runif(1)),2)
+
+plot(time, N, type="n", xlab="Days", ylab="Calls",
+panel.first = grid())
+
+segments(time[-length(time)], N[-length(time)],
+time[-1]-0.07, N[-length(time)], lwd=2, col="Dark green")
+
+points(time, N, pch=20, col="black")
+```
+
+## Predictions
+```{r}
+# lets predict the wait time (in minutes) till the 20th call
+wait_20 = 20*avg_wait_time_min
+wait_20
+wait_20/(60*24)
+```
+17091.79 minutes, which is approximately 11 days, 20 hours, and 52 minutes 
+
+
+
+
+
+
+
+## nonhomogenous poisson
+```{r}
+# changing time format to only include hour of the day 
+df5= EG_df %>% 
+  mutate(format(as.POSIXct(EG_df$timeStamp, format='%m/%d/%Y %H:%M:%S'),format='%H')) %>% 
+  rename("Time"= "format(...)") %>% 
+  select(-timeStamp)
+glimpse(df5)
+```
+
+```{r}
+# number of calls by hour of the day
+num_calls_per_hr = df5 %>% 
+  group_by(Time) %>% 
+  summarise(count=n())
+
+# change Time variable to numeric
+num_calls_per_hr$Time=as.numeric(num_calls_per_hr$Time)
+num_calls_per_hr$count=as.numeric(num_calls_per_hr$count)
+glimpse(num_calls_per_hr)
+
+
+```
+
+
+
+
+```{r}
+glimpse(num_calls_per_hr)
+```
+
+### splitting time into 4 intervals
+
+```{r}
+# LM1 is from 4AM to 9AM 
+EG1 = num_calls_per_hr %>% 
+  filter(Time>=0 & Time<=5)
+EG1
+```
+
+```{r}
+# LM2 from 10AM to 3PM
+EG2 = num_calls_per_hr %>% 
+  filter(Time>=6 & Time<=11)
+EG2
+```
+
+```{r}
+# LM3 from 4PM to 9PM
+EG3 = num_calls_per_hr %>% 
+  filter(Time>=12 & Time<=17)
+EG3
+```
+
+```{r}
+# LM4 from 10PM to 3AM 
+EG4 = num_calls_per_hr %>% 
+  filter(Time>=18 & Time<=23)
+EG4
+```
+
+### Calculate average per interval
+
+
+```{r}
+# calculating intensity rate for each interval
+EG1_avg = mean(EG1$count)
+EG2_avg = mean(EG2$count)
+EG3_avg = mean(EG3$count)
+EG4_avg = mean(EG4$count)
+
+```
+
+```{r}
+# show intensity rate for each interval 
+EG1_avg
+EG2_avg
+EG3_avg
+EG4_avg
+
+```
+
+### graphing intensity rate function and integrated intensity rate function 
+
+
+```{r}
+# plotting intensity rate function
+df_ = data.frame(vec1 = c(EG1_avg, EG2_avg, EG3_avg, EG4_avg, EG4_avg),
+                 len= c(0, 5, 11, 17, 23))
+ggplot(df_, mapping=aes(x=len, y=vec1)) +
+  geom_step(color="Purple", size=1) +
+  geom_point(size=3, shape=1) +
+  labs(title="Intensity rate function", y="intensity rate", x="hour of day")
+```
+
+```{r}
+# plotting integrated rate function
+lm = data.frame(lambda= c(0, 127.5, 476.5, 939.5, 1290.5),
+                int= c(0, 5, 11, 17, 23))
+ggplot(lm, aes(x=int, y=lambda)) +
+  geom_line(color="orange", size=1.25) +
+  geom_point() +
+  labs(title="Integrated intensity rate function", x="hour of day", y="integrated rate function")
+```
+
+
+
+
+
+
