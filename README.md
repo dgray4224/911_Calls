@@ -1,4 +1,7 @@
 # 911_Calls
+
+#### to view html output, please visit: https://dgray4224.github.io/911_Calls/  
+
 Modeling 911 calls in Montgomery County, Pennsylvania as a Poisson process
 
 The state of Pennsylvania ranks right in the middle in crime of all 50 U.S. states. Finding data on crime in Montgomery county, Pennsylvania inspired me to further analyze the emergency 911 calls and generate reliable information for use in staffing law enforcement, 911 call operators, law enforcement administrators, and management. This analysis aims to model 911 calls as a homogenous and non-homogenous Poisson process, where we can find probabilities of 911 calls given certain conditions and accurately staff to respond promptly.  
